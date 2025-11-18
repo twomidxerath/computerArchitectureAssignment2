@@ -9,12 +9,10 @@
 #define NUM_ROWS 8
 #define NUM_COLS 25
 
-static const int CACHE_SIZES[NUM_CACHE] = {1024, 2048}; /* Modify this line */
-static const int BLOCK_SIZES[NUM_BLOCK] = {64, 128};    /* Modify this line */
-static const int ASSOC_LIST[NUM_ASSOC] = {1, 2};        /* Modify this line */
+static const int CACHE_SIZES[NUM_CACHE] = {1024, 2048, 4096, 8192, 16384};
+static const int BLOCK_SIZES[NUM_BLOCK] = {8, 16, 32, 64, 128};
+static const int ASSOC_LIST[NUM_ASSOC] = {1, 2, 4, 8};
 
-
-#define DO_NOT_USE_THIS 0               /* You should not use this */
 
 /* LRU */
 struct Block_LRU {
