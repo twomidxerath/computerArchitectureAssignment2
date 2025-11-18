@@ -3,11 +3,11 @@
 #include <string.h>
 #include <float.h>
 
-#define NUM_CACHE 0 /* Modify this line */
-#define NUM_BLOCK 0 /* Modify this line */
-#define NUM_ASSOC 0 /* Modify this line */
-#define NUM_ROWS 0  /* Modify this line */
-#define NUM_COLS 0  /* Modify this line */
+#define NUM_CACHE 5
+#define NUM_BLOCK 5
+#define NUM_ASSOC 4
+#define NUM_ROWS 8
+#define NUM_COLS 25
 
 static const int CACHE_SIZES[NUM_CACHE] = {1024, 2048}; /* Modify this line */
 static const int BLOCK_SIZES[NUM_BLOCK] = {64, 128};    /* Modify this line */
