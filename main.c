@@ -16,23 +16,23 @@ static const int ASSOC_LIST[NUM_ASSOC] = {1, 2, 4, 8};
 
 /* LRU */
 struct Block_LRU {
-    char tag[DO_NOT_USE_THIS];          /* Modify this line */
-    char valid[DO_NOT_USE_THIS];        /* Modify this line */
-    char write_back[DO_NOT_USE_THIS];   /* Modify this line */
+    char tag[8];
+    char valid[8];
+    char write_back[8];
 };
-static struct Block_LRU icah_lru[1];    /* Modify this line */
-static struct Block_LRU dcah_lru[1];    /* Modify this line */
+static struct Block_LRU icah_lru[16384/8];
+static struct Block_LRU dcah_lru[16384/8];
 
 /* FIFO */
 struct Block_FIFO {
-    char tag[DO_NOT_USE_THIS];          /* Modify this line */
-    char valid[DO_NOT_USE_THIS];        /* Modify this line */
-    char write_back[DO_NOT_USE_THIS];   /* Modify this line */
+    char tag[8];
+    char valid[8];
+    char write_back[8];
 };
-static struct Block_FIFO icah_fifo[1];  /* Modify this line */
-static struct Block_FIFO dcah_fifo[1];  /* Modify this line */
-static int icah_fifo_ptr[1];            /* Modify this line */
-static int dcah_fifo_ptr[1];            /* Modify this line */
+static struct Block_FIFO icah_fifo[16384/8];
+static struct Block_FIFO dcah_fifo[16384/8];
+static int icah_fifo_ptr[16384/8];
+static int dcah_fifo_ptr[16384/8];
 
 
 static void simulate_lru  (int *type, unsigned long *addr, int length,
@@ -88,10 +88,19 @@ static void usage(const char *prog) {
 }
 
 static void read_trace(const char *path, int **ptype, unsigned long **paddr, int *plen) {
+    FILE *fp;
+    fp = fopen(path, "r");
+    int count = 0;
+    int tmp_time, tmp_label;
+    unsigned long tmp_addr;
+    for(count = 0; fscanf(fp, "%d %d %lx", &tmp_time, &tmp_label, &tmp_addr) != EOF; count++);
+    rewind(fp);
+    *ptype = (int *)malloc(sizeof(int) * count);
+    *paddr = (unsigned long *)malloc(sizeof(unsigned long) * count);
 
-    /* ------------------------------------------------------------------------- */
-    printf("Write your code here.\n");
-    /* ------------------------------------------------------------------------- */
+    for(int i = 0; fscanf(fp, "%d %d %lx", &tmp_time, &tmp_label, &tmp_addr) != EOF; i++);
+    *plen = count;
+    fclose(fp);
 
 }
 
@@ -101,9 +110,7 @@ static void simulate_lru(int *type, unsigned long *addr, int length,
                         int i_totals[NUM_ROWS][NUM_COLS],
                         int d_totals[NUM_ROWS][NUM_COLS]) {
 
-    /* ------------------------------------------------------------------------- */
-    printf("Write your code here.\n");
-    /* ------------------------------------------------------------------------- */
+    
 
 }
 
