@@ -1,0 +1,28 @@
+Reading trace file: sample_input/trace2-short.txt
+Trace contains 100000 memory accesses.
+Simulating LRU policy for BEST...
+Simulating FIFO policy for BEST...
+
+--- BEST Configuration Analysis ---
+Cycle Parameters: I(Hit/Miss) = 1/100, D(Hit/Miss) = 1/50
+
+--- Cache Size: 1024 bytes ---
+  Best I-Cache: Policy=LRU  | Block=64   | Assoc=4  | MissRate=0.0438 | Total Cycles=413542
+  Best D-Cache: Policy=LRU  | Block=32   | Assoc=8  | MissRate=0.0317 | Writes=275   | Total Cycles=71397
+
+--- Cache Size: 2048 bytes ---
+  Best I-Cache: Policy=LRU  | Block=64   | Assoc=8  | MissRate=0.0216 | Total Cycles=243262
+  Best D-Cache: Policy=LRU  | Block=64   | Assoc=8  | MissRate=0.0193 | Writes=126   | Total Cycles=50227
+
+--- Cache Size: 4096 bytes ---
+  Best I-Cache: Policy=LRU  | Block=128  | Assoc=8  | MissRate=0.0076 | Total Cycles=135847
+  Best D-Cache: Policy=LRU  | Block=32   | Assoc=8  | MissRate=0.0122 | Writes=53    | Total Cycles=38688
+
+--- Cache Size: 8192 bytes ---
+  Best I-Cache: Policy=LRU  | Block=128  | Assoc=4  | MissRate=0.0055 | Total Cycles=119908
+  Best D-Cache: Policy=LRU  | Block=64   | Assoc=8  | MissRate=0.0057 | Writes=3     | Total Cycles=28985
+
+--- Cache Size: 16384 bytes ---
+  Best I-Cache: Policy=LRU  | Block=128  | Assoc=8  | MissRate=0.0028 | Total Cycles=99118
+  Best D-Cache: Policy=LRU  | Block=128  | Assoc=4  | MissRate=0.0039 | Writes=0     | Total Cycles=26875
+
