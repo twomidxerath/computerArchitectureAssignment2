@@ -8,6 +8,7 @@
 #define NUM_ASSOC 4
 #define NUM_ROWS 8
 #define NUM_COLS 25
+#define MAX_SETS 2048
 
 static const int CACHE_SIZES[NUM_CACHE] = {1024, 2048, 4096, 8192, 16384};
 static const int BLOCK_SIZES[NUM_BLOCK] = {8, 16, 32, 64, 128};
@@ -20,8 +21,8 @@ struct Block_LRU {
     char valid[8];
     char write_back[8];
 };
-static struct Block_LRU icah_lru[16384/8];
-static struct Block_LRU dcah_lru[16384/8];
+static struct Block_LRU icah_lru[MAX_SETS];
+static struct Block_LRU dcah_lru[MAX_SETS];
 
 /* FIFO */
 struct Block_FIFO {
@@ -29,10 +30,13 @@ struct Block_FIFO {
     char valid[8];
     char write_back[8];
 };
-static struct Block_FIFO icah_fifo[16384/8];
-static struct Block_FIFO dcah_fifo[16384/8];
-static int icah_fifo_ptr[16384/8];
-static int dcah_fifo_ptr[16384/8];
+static struct Block_FIFO icah_fifo[MAX_SETS];
+static struct Block_FIFO dcah_fifo[MAX_SETS];
+static int icah_fifo_ptr[MAX_SETS];
+static int dcah_fifo_ptr[MAX_SETS];
+
+static int log(int val);
+static void addressing(unsigned long addr, int block_size, int assoc, int cache_size, unsigned long *tag_out, unsigned long *index_out);
 
 
 static void simulate_lru  (int *type, unsigned long *addr, int length,
@@ -104,12 +108,29 @@ static void read_trace(const char *path, int **ptype, unsigned long **paddr, int
 
 }
 
+
+static int log(int val){
+    int count = 0;
+    while(val > 0){
+        val >>= 1;
+        count++;
+    }
+    return count;
+}
+static void addressing(unsigned long addr, int block_size, int assoc, int cache_size, unsigned long *tag_out, unsigned long *index_out){
+    int set_num = cache_size / (block_size * assoc);
+    int offset_bits = log(block_size);
+    int index_bits = log(set_num);
+    *index_out = (addr >> offset_bits) & (set_num - 1);
+    *tag_out = addr >> (offset_bits + index_bits);
+
+}
+
 static void simulate_lru(int *type, unsigned long *addr, int length,
                         double miss[NUM_ROWS][NUM_COLS],
                         int writes[NUM_ROWS][NUM_COLS],
                         int i_totals[NUM_ROWS][NUM_COLS],
                         int d_totals[NUM_ROWS][NUM_COLS]) {
-
     
 
 }
@@ -119,10 +140,14 @@ static void simulate_fifo(int *type, unsigned long *addr, int length,
                         int writes[NUM_ROWS][NUM_COLS],
                         int i_totals[NUM_ROWS][NUM_COLS],
                         int d_totals[NUM_ROWS][NUM_COLS]) {
+    memset(icah_fifo, 0, sizeof(struct Block_FIFO) * MAX_SETS);
+    memset(dcah_fifo, 0, sizeof(struct Block_FIFO) * MAX_SETS);
+    memset(icah_fifo_ptr, 0, sizeof(int) * MAX_SETS);
+    memset(dcah_fifo_ptr, 0, sizeof(int) * MAX_SETS);
 
-    /* ------------------------------------------------------------------------- */
-    printf("Write your code here.\n");
-    /* ------------------------------------------------------------------------- */
+    int i_miss_count = 0, d_miss_count = 0, i_acc_count = 0, d_acc_count = 0, d_mem_count = 0;
+    
+
 
 }
 
