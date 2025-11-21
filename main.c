@@ -748,10 +748,7 @@ int main(int argc, char *argv[]) {
         int i_tot[NUM_ROWS][NUM_COLS]   = {{0}};
         int d_tot[NUM_ROWS][NUM_COLS]   = {{0}};
 
-        /* ------------------------------------------------------------------------- */
-        printf("Write your code here.\n");
-        /* ------------------------------------------------------------------------- */
-        // simulate_fifo( ... );
+        simulate_fifo(type, addr, length, miss, writes, i_tot, d_tot);
 
         print_results("FIFO", miss, writes);
     }
