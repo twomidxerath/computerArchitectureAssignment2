@@ -733,10 +733,7 @@ int main(int argc, char *argv[]) {
         int i_tot[NUM_ROWS][NUM_COLS]   = {{0}};
         int d_tot[NUM_ROWS][NUM_COLS]   = {{0}};
 
-        /* ------------------------------------------------------------------------- */
-        printf("Write your code here.\n");
-        /* ------------------------------------------------------------------------- */
-        // simulate_lru( ... );
+        simulate_lru(type, addr, length, miss, writes, i_tot, d_tot);
         
         print_results("LRU", miss, writes);
     }
@@ -760,10 +757,7 @@ int main(int argc, char *argv[]) {
         int i_tot[NUM_ROWS][NUM_COLS]   = {{0}};
         int d_tot[NUM_ROWS][NUM_COLS]   = {{0}};
 
-        /* ------------------------------------------------------------------------- */
-        printf("Write your code here.\n");
-        /* ------------------------------------------------------------------------- */
-        // simulate_new( ... );
+        simulate_new(type, addr, length, miss, writes, i_tot, d_tot);
 
         print_results("NEW", miss, writes);
     }
@@ -780,9 +774,8 @@ int main(int argc, char *argv[]) {
         int fifo_i_tot[NUM_ROWS][NUM_COLS]   = {{0}};
         int fifo_d_tot[NUM_ROWS][NUM_COLS]   = {{0}};
 
-        /* ------------------------------------------------------------------------- */
-        printf("Write your code here.\n");
-        /* ------------------------------------------------------------------------- */
+        simulate_lru(type, addr, length, lru_miss, lru_writes, lru_i_tot, lru_d_tot);
+        simulate_fifo(type, addr, length, fifo_miss, fifo_writes, fifo_i_tot, fifo_d_tot);
 
         printf("\n--- BEST Configuration Analysis ---\n");
         printf("Cycle Parameters: I(Hit/Miss) = %d/%d, D(Hit/Miss) = %d/%d\n\n",
