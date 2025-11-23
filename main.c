@@ -38,8 +38,7 @@ static int icah_fifo_ptr[MAX_SETS];
 static int dcah_fifo_ptr[MAX_SETS];
 
 static int log(int val);
-static void addressing(unsigned long addr, int block_size, int assoc, int cache_size, unsigned long *tag_out, unsigned long *index_out);
-
+static void calculate_address_fields(unsigned long addr, int block_size, int assoc, int cache_size, unsigned long *tag_out, unsigned long *index_out);
 
 static void simulate_lru  (int *type, unsigned long *addr, int length,
                         double miss[NUM_ROWS][NUM_COLS],
@@ -104,7 +103,7 @@ static void read_trace(const char *path, int **ptype, unsigned long **paddr, int
     *ptype = (int *)malloc(sizeof(int) * count);
     *paddr = (unsigned long *)malloc(sizeof(unsigned long) * count);
 
-    for(int i = 0; fscanf(fp, "%d %d %lx", &tmp_time, &tmp_label, &tmp_addr) != EOF; i++);
+    for(int i = 0; fscanf(fp, "%d %d %lx", &tmp_time, &(*ptype)[i], &(*paddr)[i]) != EOF; i++);
     *plen = count;
     fclose(fp);
 
@@ -119,13 +118,12 @@ static int log(int val){
     }
     return count;
 }
-static void addressing(unsigned long addr, int block_size, int assoc, int cache_size, unsigned long *tag_out, unsigned long *index_out){
+static void calculate_address_fields(unsigned long addr, int block_size, int assoc, int cache_size, unsigned long *tag_out, unsigned long *index_out){
     int set_num = cache_size / (block_size * assoc);
     int offset_bits = log(block_size);
     int index_bits = log(set_num);
     *index_out = (addr >> offset_bits) & (set_num - 1);
     *tag_out = addr >> (offset_bits + index_bits);
-
 }
 
 static void simulate_lru(int *type, unsigned long *addr, int length,
@@ -252,7 +250,7 @@ static void simulate_lru(int *type, unsigned long *addr, int length,
                         target_cache[set_index].valid[victim_way] = 1;
                         target_cache[set_index].tag[victim_way] = tag_val;
                         
-                        // ⭐ 새 블록의 시간도 현재 시간으로 설정 (방금 들어왔으니까)
+                        // 새 블록의 시간도 현재 시간으로 설정 (방금 들어왔으니까)
                         target_cache[set_index].lru_time[victim_way] = current_time;
 
                         // Dirty Bit 설정
@@ -441,9 +439,156 @@ static void simulate_new(int *type, unsigned long *addr, int length,
                         int i_totals[NUM_ROWS][NUM_COLS],
                         int d_totals[NUM_ROWS][NUM_COLS]) {
 
-    /* ------------------------------------------------------------------------- */
-    printf("Write your code here.\n");
-    /* ------------------------------------------------------------------------- */
+    int i, k, l;
+    int assoc_idx, block_idx, cache_idx;
+    
+    /* 시간 추적을 위한 변수 (시뮬레이션 전체 시간) */
+    unsigned long current_time = 0;
+
+    /* 3중 루프: 모든 구성 시뮬레이션 */
+    for (assoc_idx = 0; assoc_idx < NUM_ASSOC; assoc_idx++) {
+        int assoc = ASSOC_LIST[assoc_idx];
+
+        for (block_idx = 0; block_idx < NUM_BLOCK; block_idx++) {
+            int blk_size = BLOCK_SIZES[block_idx];
+
+            for (cache_idx = 0; cache_idx < NUM_CACHE; cache_idx++) {
+                int cache_size = CACHE_SIZES[cache_idx];
+
+                /* ------------------------------------------------ */
+                /* 1. 초기화 (Initialization) */
+                /* ------------------------------------------------ */
+                
+                // 캐시 메모리 및 포인터 초기화
+                memset(icah_lru, 0, sizeof(struct Block_LRU) * MAX_SETS);
+                memset(dcah_lru, 0, sizeof(struct Block_LRU) * MAX_SETS);
+                
+                // 통계 변수 초기화
+                int i_miss_count = 0;
+                int d_miss_count = 0;
+                int i_acc_count = 0;
+                int d_acc_count = 0;
+                int d_write_mem_count = 0;
+
+                /* ------------------------------------------------ */
+                /* 2. 트레이스 시뮬레이션 (Trace Loop) */
+                /* ------------------------------------------------ */
+                for (k = 0; k < length; k++) {
+                    current_time++; // ⭐ 시간 흐름 (매 접근마다 증가)
+
+                    int cur_type = type[k];
+                    unsigned long cur_addr = addr[k];
+
+                    // 주소 디코딩 (헬퍼 함수)
+                    unsigned long tag_val;
+                    unsigned long set_index;
+                    calculate_address_fields(cur_addr, blk_size, assoc, cache_size, 
+                                             &tag_val, &set_index);
+
+                    // 타겟 캐시 설정
+                    struct Block_LRU *target_cache;
+                    int is_icache = (cur_type == 2);
+
+                    if (is_icache) {
+                        target_cache = icah_lru;
+                        i_acc_count++;
+                    } else {
+                        target_cache = dcah_lru;
+                        d_acc_count++;
+                    }
+
+                    // Hit 검사
+                    int hit = 0;
+                    int hit_way = -1;
+
+                    for (l = 0; l < assoc; l++) {
+                        if (target_cache[set_index].valid[l] && target_cache[set_index].tag[l] == tag_val) {
+                            hit = 1;
+                            hit_way = l;
+                            
+                            // Hit & Write -> Dirty Bit 설정
+                            if (!is_icache && cur_type == 1) {
+                                target_cache[set_index].write_back[l] = 1;
+                            }
+                            break; 
+                        }
+                    }
+
+                    // Hit 처리: 시간 갱신
+                    if (hit) {
+                        // ⭐ 가장 최근에 사용되었으므로 현재 시간으로 갱신
+                        target_cache[set_index].lru_time[hit_way] = current_time;
+                    }
+                    // Miss 처리: LRU 교체
+                    else {
+                        if (is_icache) i_miss_count++;
+                        else d_miss_count++;
+
+                        int victim_way = -1;
+                        unsigned long oldest_time = ULONG_MAX; // 최대값으로 초기화
+
+                        // Victim 선정 로직
+                        // 1. 빈 공간이 있으면 우선 사용
+                        int found_empty = 0;
+                        for (l = 0; l < assoc; l++) {
+                            if (target_cache[set_index].valid[l] == 0) {
+                                victim_way = l;
+                                found_empty = 1;
+                                break;
+                            }
+                        }
+
+                        // 2. 빈 공간이 없으면 가장 오래된(LRU Time 최소) 블록 찾기
+                        if (!found_empty) {
+                            for (l = 0; l < assoc; l++) {
+                                if (target_cache[set_index].lru_time[l] > oldest_time) {
+                                    oldest_time = target_cache[set_index].lru_time[l];
+                                    victim_way = l;
+                                }
+                            }
+                        }
+
+                        // [Write-Back Check]
+                        if (target_cache[set_index].valid[victim_way] && target_cache[set_index].write_back[victim_way]) {
+                            d_write_mem_count++;
+                        }
+
+                        // 새 블록 등록
+                        target_cache[set_index].valid[victim_way] = 1;
+                        target_cache[set_index].tag[victim_way] = tag_val;
+                        
+                        // 새 블록의 시간도 현재 시간으로 설정 (방금 들어왔으니까)
+                        target_cache[set_index].lru_time[victim_way] = current_time;
+
+                        // Dirty Bit 설정
+                        if (!is_icache && cur_type == 1) {
+                            target_cache[set_index].write_back[victim_way] = 1;
+                        } else {
+                            target_cache[set_index].write_back[victim_way] = 0;
+                        }
+                    }
+
+                } /* Trace Loop End */
+
+                /* ------------------------------------------------ */
+                /* 3. 결과 저장 */
+                /* ------------------------------------------------ */
+                int row_i = assoc_idx;
+                int row_d = assoc_idx + NUM_ASSOC;
+                int col = (block_idx * NUM_CACHE) + cache_idx;
+
+                miss[row_i][col] = (i_acc_count > 0) ? (double)i_miss_count / i_acc_count : 0.0;
+                miss[row_d][col] = (d_acc_count > 0) ? (double)d_miss_count / d_acc_count : 0.0;
+
+                writes[row_d][col] = d_write_mem_count;
+                writes[row_i][col] = 0;
+
+                i_totals[row_i][col] = i_acc_count;
+                d_totals[row_d][col] = d_acc_count;
+
+            } /* Cache Size Loop */
+        } /* Block Size Loop */
+    } /* Assoc Loop */
 
 }
 
