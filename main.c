@@ -439,6 +439,8 @@ static void simulate_new(int *type, unsigned long *addr, int length,
                         int i_totals[NUM_ROWS][NUM_COLS],
                         int d_totals[NUM_ROWS][NUM_COLS]) {
 
+
+    /*MRU 사용*/
     int i, k, l;
     int assoc_idx, block_idx, cache_idx;
     
@@ -819,11 +821,27 @@ static void print_two_cache_state(const char *policy, int is_icache, int index, 
 }
 
 static void print_new_cache_state(int is_icache, int index, int assoc) {
+    // 1. 헤더 출력
+    printf("\n[NEW Policy State Dump] %s | index=%d | assoc=%d\n",
+           is_icache ? "I-Cache" : "D-Cache",
+           index, assoc);
 
-    /* ------------------------------------------------------------------------- */
-    printf("Write your code here.\n");
-    /* ------------------------------------------------------------------------- */
+    // 2. 캐시 배열 선택
+    // MRU 구현 시 LRU 구조체와 배열(icah_lru, dcah_lru)을 재사용한다고 가정합니다.
+    // 만약 simulate_new에서 별도의 배열(예: icah_new)을 선언해서 쓰셨다면 그걸로 바꿔주세요.
+    struct Block_LRU *cache = is_icache ? icah_lru : dcah_lru;
 
+    // 3. 각 Way의 상태 출력
+    for (int i = 0; i < assoc; i++) {
+        // 핵심: lru_time을 출력하여 교체 우선순위를 검증할 수 있게 함
+        printf("  Way %-2d | valid=%d  tag=%lx  write_back=%d  lru_time=%lu\n",
+               i,
+               cache[index].valid[i],
+               cache[index].tag[i],
+               cache[index].write_back[i],
+               cache[index].lru_time[i]); 
+    }
+    printf("\n");
 }
 
 int main(int argc, char *argv[]) {
