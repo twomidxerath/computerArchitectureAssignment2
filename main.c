@@ -527,7 +527,7 @@ static void simulate_new(int *type, unsigned long *addr, int length,
                         else d_miss_count++;
 
                         int victim_way = -1;
-                        unsigned long oldest_time = ULONG_MAX; // 최대값으로 초기화
+                        unsigned long most_recent_time = 0;
 
                         // Victim 선정 로직
                         // 1. 빈 공간이 있으면 우선 사용
@@ -543,8 +543,8 @@ static void simulate_new(int *type, unsigned long *addr, int length,
                         // 2. 빈 공간이 없으면 가장 오래된(LRU Time 최소) 블록 찾기
                         if (!found_empty) {
                             for (l = 0; l < assoc; l++) {
-                                if (target_cache[set_index].lru_time[l] > oldest_time) {
-                                    oldest_time = target_cache[set_index].lru_time[l];
+                                if (target_cache[set_index].lru_time[l] > most_recent_time) {
+                                    most_recent_time = target_cache[set_index].lru_time[l];
                                     victim_way = l;
                                 }
                             }
@@ -568,6 +568,10 @@ static void simulate_new(int *type, unsigned long *addr, int length,
                         } else {
                             target_cache[set_index].write_back[victim_way] = 0;
                         }
+                    }
+                    // [추가 예시] 처음 10번의 접근에 대해서만 상태를 출력하여 검증
+                    if (k < 10) {
+                        print_new_cache_state(is_icache, set_index, assoc);
                     }
 
                 } /* Trace Loop End */
