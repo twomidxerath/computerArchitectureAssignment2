@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <strings.h>
 #include <float.h>
 
 #define NUM_CACHE 5
@@ -37,7 +38,7 @@ static struct Block_FIFO dcah_fifo[MAX_SETS];
 static int icah_fifo_ptr[MAX_SETS];
 static int dcah_fifo_ptr[MAX_SETS];
 
-static int log(int val);
+static int get_log(int val);
 static void calculate_address_fields(unsigned long addr, int block_size, int assoc, int cache_size, unsigned long *tag_out, unsigned long *index_out);
 
 static void simulate_lru  (int *type, unsigned long *addr, int length,
@@ -110,7 +111,7 @@ static void read_trace(const char *path, int **ptype, unsigned long **paddr, int
 }
 
 
-static int log(int val){
+static int get_log(int val){
     int count = 0;
     while(val > 0){
         val >>= 1;
@@ -120,8 +121,8 @@ static int log(int val){
 }
 static void calculate_address_fields(unsigned long addr, int block_size, int assoc, int cache_size, unsigned long *tag_out, unsigned long *index_out){
     int set_num = cache_size / (block_size * assoc);
-    int offset_bits = log(block_size);
-    int index_bits = log(set_num);
+    int offset_bits = get_log(block_size);
+    int index_bits = get_log(set_num);
     *index_out = (addr >> offset_bits) & (set_num - 1);
     *tag_out = addr >> (offset_bits + index_bits);
 }
@@ -218,7 +219,7 @@ static void simulate_lru(int *type, unsigned long *addr, int length,
                         else d_miss_count++;
 
                         int victim_way = -1;
-                        unsigned long oldest_time = ULONG_MAX; // 최대값으로 초기화
+                        unsigned long oldest_time = 0;
 
                         // Victim 선정 로직
                         // 1. 빈 공간이 있으면 우선 사용
