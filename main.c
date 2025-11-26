@@ -3,7 +3,7 @@
 #include <string.h>
 #include <strings.h>
 #include <float.h>
-#include <limits.h> /* [필수] ULONG_MAX 사용을 위해 추가 */
+#include <limits.h> /* [수정 1] ULONG_MAX 사용을 위해 이 헤더가 꼭 필요합니다! */
 
 #define NUM_CACHE 5
 #define NUM_BLOCK 5
@@ -575,10 +575,7 @@ int main(int argc, char *argv[]) {
     unsigned long *addr = NULL;
     int length = 0;
 
-    // [수정됨] 파일 경로에서 파일명만 추출하여 출력 (diff 통과용)
-    char *filename = strrchr(trace_file, '/');
-    if (filename) filename++; else filename = trace_file;
-    printf("Reading trace file: %s\n", trace_file); // 원래 경로 그대로 출력하는 것이 sample_output과 맞을 가능성이 큼 (Makefile 인자 기준)
+    printf("Reading trace file: %s\n", trace_file); // [수정 2] 정답 파일(sample_output) 형식에 맞춰 전체 경로 출력 유지
 
     read_trace(trace_file, &type, &addr, &length);
     printf("Trace contains %d memory accesses.\n", length);
