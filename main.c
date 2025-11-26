@@ -3,6 +3,7 @@
 #include <string.h>
 #include <strings.h>
 #include <float.h>
+#include <limits.h>
 
 #define NUM_CACHE 5
 #define NUM_BLOCK 5
