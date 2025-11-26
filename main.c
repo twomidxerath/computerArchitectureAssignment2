@@ -113,7 +113,7 @@ static void read_trace(const char *path, int **ptype, unsigned long **paddr, int
 
 static int get_log(int val){
     int count = 0;
-    while(val > 0){
+    while(val > 1){
         val >>= 1;
         count++;
     }
