@@ -2,10 +2,14 @@ CC      = gcc
 CFLAGS  = -O2 -Wall -lm
 PROGRAM = cacheSim.out
 
+# 'make'만 치면 실행되는 기본 타겟
 all: $(PROGRAM)
 
+# 실행 파일 생성 규칙
 $(PROGRAM): main.c
 	$(CC) $(CFLAGS) -o $(PROGRAM) main.c
+
+# --- 테스트 케이스 정의 ---
 
 test-trace1-fifo:
 	@echo "Running trace1 FIFO..."
@@ -49,6 +53,7 @@ test-trace2-short-best:
 	    && echo "  PASS trace2-short-best" \
 	    || (echo "  FAIL trace2-short-best"; exit 1)
 
+# 전체 테스트 실행 타겟
 test: all \
       test-trace1-fifo \
       test-trace1-lru \
