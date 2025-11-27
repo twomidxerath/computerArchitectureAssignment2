@@ -471,14 +471,12 @@ static void print_best_results(
     
     int cl, bl, as; 
 
-    // 1. 캐시 크기별로 최적의 설정을 찾습니다.
     for (cl = 0; cl < NUM_CACHE; cl++) {
 
-        // [수정] I-Cache와 D-Cache의 최소 사이클을 따로 추적합니다.
+        // [수정] 최소 사이클 변수를 분리했습니다.
         double min_i_cycles = DBL_MAX;
         double min_d_cycles = DBL_MAX;
 
-        // 최적 설정 저장 변수들도 분리
         const char *best_i_policy = "N/A";
         int best_i_block = 0;
         int best_i_assoc = 0;
@@ -492,7 +490,6 @@ static void print_best_results(
         int best_d_writes = 0;
         double best_d_total_cycles = 0.0;
 
-        // 2. 모든 블록 크기와 연관도 조합을 순회
         for (bl = 0; bl < NUM_BLOCK; bl++) {
             for (as = 0; as < NUM_ASSOC; as++) {
                 
@@ -500,16 +497,13 @@ static void print_best_results(
                 int row_d = as + NUM_ASSOC;
                 int col = (bl * NUM_CACHE) + cl;
                 
-                // -----------------------------------------------------
-                // (A) LRU 성능 계산 및 비교
-                // -----------------------------------------------------
+                // (A) LRU
                 double lru_i_mr = lru_miss[row_i][col];
                 int lru_i_total = lru_i_tot[row_i][col];
-                // Miss Rate가 있으므로 Hit Rate = 1 - Miss Rate
                 double lru_i_cycles = (lru_i_total * (1.0 - lru_i_mr) * i_hit) + 
                                       (lru_i_total * lru_i_mr * i_miss);
 
-                // I-Cache 최적 확인 (LRU)
+                // I-Cache 독립 비교
                 if (lru_i_cycles < min_i_cycles) {
                     min_i_cycles = lru_i_cycles;
                     best_i_policy = "LRU";
@@ -524,7 +518,7 @@ static void print_best_results(
                 double lru_d_cycles = (lru_d_total * (1.0 - lru_d_mr) * d_hit) + 
                                       (lru_d_total * lru_d_mr * d_miss);
 
-                // D-Cache 최적 확인 (LRU)
+                // D-Cache 독립 비교
                 if (lru_d_cycles < min_d_cycles) {
                     min_d_cycles = lru_d_cycles;
                     best_d_policy = "LRU";
@@ -535,15 +529,12 @@ static void print_best_results(
                     best_d_total_cycles = lru_d_cycles;
                 }
 
-                // -----------------------------------------------------
-                // (B) FIFO 성능 계산 및 비교
-                // -----------------------------------------------------
+                // (B) FIFO
                 double fifo_i_mr = fifo_miss[row_i][col];
                 int fifo_i_total = fifo_i_tot[row_i][col];
                 double fifo_i_cycles = (fifo_i_total * (1.0 - fifo_i_mr) * i_hit) + 
                                        (fifo_i_total * fifo_i_mr * i_miss);
 
-                // I-Cache 최적 확인 (FIFO) - 기존 min_i_cycles와 비교
                 if (fifo_i_cycles < min_i_cycles) {
                     min_i_cycles = fifo_i_cycles;
                     best_i_policy = "FIFO";
@@ -558,7 +549,6 @@ static void print_best_results(
                 double fifo_d_cycles = (fifo_d_total * (1.0 - fifo_d_mr) * d_hit) + 
                                        (fifo_d_total * fifo_d_mr * d_miss);
 
-                // D-Cache 최적 확인 (FIFO) - 기존 min_d_cycles와 비교
                 if (fifo_d_cycles < min_d_cycles) {
                     min_d_cycles = fifo_d_cycles;
                     best_d_policy = "FIFO";
@@ -571,10 +561,9 @@ static void print_best_results(
             }
         }
 
-        // 3. 결과 출력
         printf("--- Cache Size: %d bytes ---\n", CACHE_SIZES[cl]);
 
-        if (min_i_cycles == DBL_MAX) // I/D 둘 중 하나라도 없으면 (사실상 둘 다 없을 때)
+        if (min_i_cycles == DBL_MAX)
             printf("  I-Cache: No instruction accesses.\n");
         else
             printf("  Best I-Cache: Policy=%-4s | Block=%-4d | Assoc=%-2d | MissRate=%.4f | Total Cycles=%.0f\n",
