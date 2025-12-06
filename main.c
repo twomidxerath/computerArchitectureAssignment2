@@ -36,6 +36,9 @@ struct Block_FIFO {
 };
 static struct Block_FIFO icah_fifo[MAX_SETS];
 static struct Block_FIFO dcah_fifo[MAX_SETS];
+
+
+
 static int icah_fifo_ptr[MAX_SETS];
 static int dcah_fifo_ptr[MAX_SETS];
 
@@ -311,25 +314,45 @@ static void simulate_fifo(int *type, unsigned long *addr, int length,
     }
 }
 
-static void simulate_new(int *type, unsigned long *addr, int length,
+/* --- SLRU 구조체 및 변수 정의 (main 함수보다 위에 있어야 함) --- */
+struct Block_SLRU {
+    unsigned long tag[MAX_WAYS];      
+    char valid[MAX_WAYS];             
+    char write_back[MAX_WAYS];   
+    unsigned long lru_time[MAX_WAYS];
+    char is_protected[MAX_WAYS]; // 1: Protected, 0: Probationary
+};
+
+// SLRU 전용 캐시 메모리 선언
+static struct Block_SLRU icah_slru[MAX_SETS];
+static struct Block_SLRU dcah_slru[MAX_SETS];
+
+/* --- SLRU 시뮬레이션 함수 --- */
+static void simulate_slru(int *type, unsigned long *addr, int length,
                         double miss[NUM_ROWS][NUM_COLS],
                         int writes[NUM_ROWS][NUM_COLS],
                         int i_totals[NUM_ROWS][NUM_COLS],
                         int d_totals[NUM_ROWS][NUM_COLS]) {
-    // MRU Implementation
+
     int i, k, l;
     int assoc_idx, block_idx, cache_idx;
     unsigned long current_time = 0;
 
     for (assoc_idx = 0; assoc_idx < NUM_ASSOC; assoc_idx++) {
         int assoc = ASSOC_LIST[assoc_idx];
+        // Protected 구역의 크기 설정 (전체의 50%)
+        int protected_cap = assoc / 2; 
+        if (protected_cap == 0) protected_cap = 1; // 최소 1개
+
         for (block_idx = 0; block_idx < NUM_BLOCK; block_idx++) {
             int blk_size = BLOCK_SIZES[block_idx];
+
             for (cache_idx = 0; cache_idx < NUM_CACHE; cache_idx++) {
                 int cache_size = CACHE_SIZES[cache_idx];
 
-                memset(icah_lru, 0, sizeof(struct Block_LRU) * MAX_SETS);
-                memset(dcah_lru, 0, sizeof(struct Block_LRU) * MAX_SETS);
+                // SLRU 캐시 초기화
+                memset(icah_slru, 0, sizeof(struct Block_SLRU) * MAX_SETS);
+                memset(dcah_slru, 0, sizeof(struct Block_SLRU) * MAX_SETS);
                 
                 int i_miss_count = 0, d_miss_count = 0;
                 int i_acc_count = 0, d_acc_count = 0;
@@ -343,10 +366,12 @@ static void simulate_new(int *type, unsigned long *addr, int length,
                     
                     calculate_address_fields(cur_addr, blk_size, assoc, cache_size, &tag_val, &set_index);
 
-                    struct Block_LRU *target_cache = (cur_type == 2) ? icah_lru : dcah_lru;
+                    struct Block_SLRU *target_cache = (cur_type == 2) ? icah_slru : dcah_slru;
                     if (cur_type == 2) i_acc_count++; else d_acc_count++;
 
                     int hit = 0, hit_way = -1;
+                    
+                    // 1. Hit 검사
                     for (l = 0; l < assoc; l++) {
                         if (target_cache[set_index].valid[l] && target_cache[set_index].tag[l] == tag_val) {
                             hit = 1; hit_way = l;
@@ -357,41 +382,90 @@ static void simulate_new(int *type, unsigned long *addr, int length,
 
                     if (hit) {
                         target_cache[set_index].lru_time[hit_way] = current_time;
+                        
+                        // [SLRU 핵심] Hit 발생 시: Probationary(0)라면 Protected(1)로 승격
+                        if (target_cache[set_index].is_protected[hit_way] == 0) {
+                            
+                            // Protected 구역이 꽉 찼는지 확인
+                            int protected_count = 0;
+                            int lru_protected_way = -1;
+                            unsigned long oldest_protected_time = ULONG_MAX;
+
+                            for(l=0; l<assoc; l++){
+                                if(target_cache[set_index].valid[l] && target_cache[set_index].is_protected[l]){
+                                    protected_count++;
+                                    if(target_cache[set_index].lru_time[l] < oldest_protected_time){
+                                        oldest_protected_time = target_cache[set_index].lru_time[l];
+                                        lru_protected_way = l;
+                                    }
+                                }
+                            }
+
+                            // Protected 구역이 꽉 찼다면, Protected 중 LRU를 Probationary로 강등
+                            if (protected_count >= protected_cap) {
+                                if(lru_protected_way != -1) {
+                                    target_cache[set_index].is_protected[lru_protected_way] = 0;
+                                }
+                            }
+                            // 현재 Hit된 블록을 승격
+                            target_cache[set_index].is_protected[hit_way] = 1;
+                        }
                     } else {
+                        // 2. Miss 처리
                         if (cur_type == 2) i_miss_count++; else d_miss_count++;
 
                         int victim_way = -1;
-                        unsigned long most_recent_time = 0; // 0으로 초기화 (MRU)
                         int found_empty = 0;
 
+                        // (1) 빈 공간 찾기
                         for (l = 0; l < assoc; l++) {
                             if (target_cache[set_index].valid[l] == 0) {
                                 victim_way = l; found_empty = 1; break;
                             }
                         }
 
+                        // (2) 빈 공간 없으면 교체 (Eviction)
                         if (!found_empty) {
+                            // 우선순위 1: Probationary(비보호) 구역의 LRU를 찾는다.
+                            unsigned long oldest_prob_time = ULONG_MAX;
+                            int lru_prob_way = -1;
+
                             for (l = 0; l < assoc; l++) {
-                                // MRU: 가장 시간값이 큰(최근) 블록 찾기
-                                if (target_cache[set_index].lru_time[l] > most_recent_time) {
-                                    most_recent_time = target_cache[set_index].lru_time[l];
-                                    victim_way = l;
+                                // Valid하고, Protected가 아닌 것 중 LRU
+                                if (target_cache[set_index].valid[l] && target_cache[set_index].is_protected[l] == 0) { 
+                                    if (target_cache[set_index].lru_time[l] < oldest_prob_time) {
+                                        oldest_prob_time = target_cache[set_index].lru_time[l];
+                                        lru_prob_way = l;
+                                    }
+                                }
+                            }
+
+                            if (lru_prob_way != -1) {
+                                victim_way = lru_prob_way;
+                            } else {
+                                // 만약 Probationary가 비어있다면, Protected 중 LRU 선택
+                                unsigned long oldest_prot_time = ULONG_MAX;
+                                for (l = 0; l < assoc; l++) {
+                                    if (target_cache[set_index].lru_time[l] < oldest_prot_time) {
+                                        oldest_prot_time = target_cache[set_index].lru_time[l];
+                                        victim_way = l;
+                                    }
                                 }
                             }
                         }
 
+                        // Write-Back 처리
                         if (target_cache[set_index].valid[victim_way] && target_cache[set_index].write_back[victim_way]) {
                             d_write_mem_count++;
                         }
 
+                        // 새 데이터 삽입 (초기 상태: Probationary = 0)
                         target_cache[set_index].valid[victim_way] = 1;
                         target_cache[set_index].tag[victim_way] = tag_val;
                         target_cache[set_index].lru_time[victim_way] = current_time;
                         target_cache[set_index].write_back[victim_way] = (cur_type == 1) ? 1 : 0;
+                        target_cache[set_index].is_protected[victim_way] = 0; 
                     }
-                    
-                    // 디버깅용 (보고서 제출 시 활용)
-                    if (k < 10) print_new_cache_state((cur_type==2), set_index, assoc);
                 }
 
                 int row_i = assoc_idx;
@@ -409,59 +483,6 @@ static void simulate_new(int *type, unsigned long *addr, int length,
     }
 }
 
-static void print_results(const char *label, const double miss[NUM_ROWS][NUM_COLS], const int writes[NUM_ROWS][NUM_COLS]) {
-    int i, j, k;
-    printf("\nMissRate\n");
-    for (i = 0; i < NUM_ROWS; i++) {
-        if (i == 0) {
-            printf("           ");
-            for (k = 0; k < NUM_BLOCK; k++) printf("%s/%-4d                                 ", label, BLOCK_SIZES[k]);
-            printf("\nI cache   ");
-            for (k = 0; k < NUM_BLOCK; k++) for (j = 0; j < NUM_CACHE; j++) printf("%-7d", CACHE_SIZES[j]);
-            printf("\n");
-        }
-        if (i == NUM_ASSOC) {
-            printf("\n           ");
-            for (k = 0; k < NUM_BLOCK; k++) printf("%s/%-4d                                 ", label, BLOCK_SIZES[k]);
-            printf("\nD cache   ");
-            for (k = 0; k < NUM_BLOCK; k++) for (j = 0; j < NUM_CACHE; j++) printf("%-7d", CACHE_SIZES[j]);
-            printf("\n");
-        }
-        if (i % NUM_ASSOC == 0) printf("Direct | ");
-        else if (i % NUM_ASSOC == 1) printf("2  Way | ");
-        else if (i % NUM_ASSOC == 2) printf("4  Way | ");
-        else printf("8  Way | ");
-        
-        for (j = 0; j < NUM_COLS; j++) printf("%.4lf ", miss[i][j]);
-        printf("\n");
-    }
-
-    printf("\nWrite Count\n");
-    for (i = 0; i < NUM_ROWS; i++) {
-        if (i == 0) {
-            printf("           ");
-            for (k = 0; k < NUM_BLOCK; k++) printf("%s/%-4d                          ", label, BLOCK_SIZES[k]);
-            printf("\nI cache   ");
-            for (k = 0; k < NUM_BLOCK; k++) for (j = 0; j < NUM_CACHE; j++) printf("%6d", CACHE_SIZES[j]);
-            printf("\n");
-        }
-        if (i == NUM_ASSOC) {
-            printf("\n           ");
-            for (k = 0; k < NUM_BLOCK; k++) printf("%s/%-4d                          ", label, BLOCK_SIZES[k]);
-            printf("\nD cache   ");
-            for (k = 0; k < NUM_BLOCK; k++) for (j = 0; j < NUM_CACHE; j++) printf("%6d", CACHE_SIZES[j]);
-            printf("\n");
-        }
-        if (i % NUM_ASSOC == 0) printf("Direct | ");
-        else if (i % NUM_ASSOC == 1) printf("2  Way | ");
-        else if (i % NUM_ASSOC == 2) printf("4  Way | ");
-        else printf("8  Way | ");
-
-        for (j = 0; j < NUM_COLS; j++) printf("%5d ", writes[i][j]);
-        printf("\n");
-    }
-}
-
 static void print_best_results(
     const double lru_miss[NUM_ROWS][NUM_COLS], const int lru_writes[NUM_ROWS][NUM_COLS],
     const int lru_i_tot[NUM_ROWS][NUM_COLS], const int lru_d_tot[NUM_ROWS][NUM_COLS],
@@ -474,11 +495,10 @@ static void print_best_results(
     // 1. 캐시 크기별로 최적의 설정을 찾습니다.
     for (cl = 0; cl < NUM_CACHE; cl++) {
 
-        // [핵심 수정] 변수를 2개로 분리했습니다!
         double min_i_cycles = DBL_MAX;
         double min_d_cycles = DBL_MAX;
 
-        // 최적 설정 저장 변수들도 분리
+        // 최적 설정 저장 변수들
         const char *best_i_policy = "N/A";
         int best_i_block = 0;
         int best_i_assoc = 0;
@@ -503,11 +523,10 @@ static void print_best_results(
                 // --- (A) LRU 성능 계산 ---
                 double lru_i_mr = lru_miss[row_i][col];
                 int lru_i_total = lru_i_tot[row_i][col];
-                // Hit Count = Total * (1 - MissRate)
+                // I-Cache는 Write-Back이 없으므로 기존 식 유지
                 double lru_i_cycles = (lru_i_total * (1.0 - lru_i_mr) * i_hit) + 
                                       (lru_i_total * lru_i_mr * i_miss);
 
-                // [수정] I-Cache만 따로 비교 (LRU)
                 if (lru_i_cycles < min_i_cycles) {
                     min_i_cycles = lru_i_cycles;
                     best_i_policy = "LRU";
@@ -519,10 +538,12 @@ static void print_best_results(
 
                 double lru_d_mr = lru_miss[row_d][col];
                 int lru_d_total = lru_d_tot[row_d][col];
+                
+                // [수정 포인트 1] LRU D-Cache 사이클 계산: Write-Back 비용(lru_writes * d_miss) 추가
                 double lru_d_cycles = (lru_d_total * (1.0 - lru_d_mr) * d_hit) + 
-                                      (lru_d_total * lru_d_mr * d_miss);
+                                      (lru_d_total * lru_d_mr * d_miss) +
+                                      (lru_writes[row_d][col] * d_miss); 
 
-                // [수정] D-Cache만 따로 비교 (LRU)
                 if (lru_d_cycles < min_d_cycles) {
                     min_d_cycles = lru_d_cycles;
                     best_d_policy = "LRU";
@@ -539,7 +560,6 @@ static void print_best_results(
                 double fifo_i_cycles = (fifo_i_total * (1.0 - fifo_i_mr) * i_hit) + 
                                        (fifo_i_total * fifo_i_mr * i_miss);
 
-                // [수정] I-Cache만 따로 비교 (FIFO)
                 if (fifo_i_cycles < min_i_cycles) {
                     min_i_cycles = fifo_i_cycles;
                     best_i_policy = "FIFO";
@@ -551,10 +571,12 @@ static void print_best_results(
 
                 double fifo_d_mr = fifo_miss[row_d][col];
                 int fifo_d_total = fifo_d_tot[row_d][col];
-                double fifo_d_cycles = (fifo_d_total * (1.0 - fifo_d_mr) * d_hit) + 
-                                       (fifo_d_total * fifo_d_mr * d_miss);
 
-                // [수정] D-Cache만 따로 비교 (FIFO)
+                // [수정 포인트 2] FIFO D-Cache 사이클 계산: Write-Back 비용(fifo_writes * d_miss) 추가
+                double fifo_d_cycles = (fifo_d_total * (1.0 - fifo_d_mr) * d_hit) + 
+                                       (fifo_d_total * fifo_d_mr * d_miss) +
+                                       (fifo_writes[row_d][col] * d_miss);
+
                 if (fifo_d_cycles < min_d_cycles) {
                     min_d_cycles = fifo_d_cycles;
                     best_d_policy = "FIFO";
