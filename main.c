@@ -314,7 +314,7 @@ static void simulate_fifo(int *type, unsigned long *addr, int length,
     }
 }
 
-/* --- SLRU 구조체 및 변수 정의 (main 함수보다 위에 있어야 함) --- */
+/* --- SLRU 구조체 및 변수 정의 --- */
 struct Block_SLRU {
     unsigned long tag[MAX_WAYS];      
     char valid[MAX_WAYS];             
@@ -327,8 +327,8 @@ struct Block_SLRU {
 static struct Block_SLRU icah_slru[MAX_SETS];
 static struct Block_SLRU dcah_slru[MAX_SETS];
 
-/* --- SLRU 시뮬레이션 함수 --- */
-static void simulate_slru(int *type, unsigned long *addr, int length,
+/* --- 이름 변경됨: simulate_slru -> simulate_new --- */
+static void simulate_new(int *type, unsigned long *addr, int length,
                         double miss[NUM_ROWS][NUM_COLS],
                         int writes[NUM_ROWS][NUM_COLS],
                         int i_totals[NUM_ROWS][NUM_COLS],
@@ -383,7 +383,7 @@ static void simulate_slru(int *type, unsigned long *addr, int length,
                     if (hit) {
                         target_cache[set_index].lru_time[hit_way] = current_time;
                         
-                        // [SLRU 핵심] Hit 발생 시: Probationary(0)라면 Protected(1)로 승격
+                        // Hit 발생 시: Probationary(0)라면 Protected(1)로 승격
                         if (target_cache[set_index].is_protected[hit_way] == 0) {
                             
                             // Protected 구역이 꽉 찼는지 확인
